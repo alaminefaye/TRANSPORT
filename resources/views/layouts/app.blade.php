@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-    <title>@yield('title', 'Dashboard') - {{ config('app.name') }}</title>
+    <title>@yield('title', 'Dashboard') - {{ setting('company_name', config('app.name')) }}</title>
     <meta name="description" content="@yield('description', '')" />
     
     <!-- Favicon -->
@@ -29,6 +29,111 @@
     <!-- Page CSS -->
     @stack('page-css')
     
+    <!-- Dynamic Theme Colors -->
+    <style>
+        :root {
+            --primary-color: {{ setting('primary_color', '#696cff') }};
+            --secondary-color: {{ setting('secondary_color', '#8592a3') }};
+            --sidebar-text-color: {{ setting('sidebar_text_color', '#697a8d') }};
+            --sidebar-active-bg-color: {{ setting('sidebar_active_bg_color', '#696cff') }};
+            --sidebar-active-text-color: {{ setting('sidebar_active_text_color', '#ffffff') }};
+        }
+        
+        /* Apply primary color */
+        .btn-primary,
+        .bg-primary {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+        }
+        
+        .btn-primary:hover,
+        .btn-primary:focus,
+        .btn-primary:active {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+            filter: brightness(0.9);
+        }
+        
+        .text-primary {
+            color: var(--primary-color) !important;
+        }
+        
+        a {
+            color: var(--primary-color);
+        }
+        
+        a:hover {
+            color: var(--primary-color);
+            filter: brightness(0.9);
+        }
+        
+        /* Menu active state */
+        .menu-item.active > .menu-link,
+        .menu-item.active.open > .menu-link {
+            background-color: var(--sidebar-active-bg-color) !important;
+        }
+        
+        /* Logo color in SVG */
+        #g-app-brand #Brand-Logo #Icon #Mask use,
+        #g-app-brand #Brand-Logo #Icon #Triangle use {
+            fill: var(--primary-color) !important;
+        }
+        
+        /* Form focus states */
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(var(--primary-color-rgb, 105, 108, 255), 0.25);
+        }
+        
+        /* Badges */
+        .badge.bg-primary {
+            background-color: var(--primary-color) !important;
+        }
+        
+        /* Progress bars */
+        .progress-bar {
+            background-color: var(--primary-color) !important;
+        }
+        
+        /* Pagination */
+        .pagination .page-item.active .page-link {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+        }
+        
+        /* Sidebar text color */
+        .layout-menu .menu-link,
+        .layout-menu .menu-text,
+        .layout-menu .menu-icon,
+        .layout-menu .menu-item .menu-link div,
+        .layout-menu .app-brand-text {
+            color: var(--sidebar-text-color) !important;
+        }
+        
+        /* Sidebar text color for active items */
+        .layout-menu .menu-item.active > .menu-link,
+        .layout-menu .menu-item.active > .menu-link .menu-text,
+        .layout-menu .menu-item.active > .menu-link div,
+        .layout-menu .menu-item.active > .menu-link .menu-icon,
+        .layout-menu .menu-item.active > .menu-link i,
+        .layout-menu .menu-item.active.open > .menu-link,
+        .layout-menu .menu-item.active.open > .menu-link .menu-text,
+        .layout-menu .menu-item.active.open > .menu-link div,
+        .layout-menu .menu-item.active.open > .menu-link .menu-icon,
+        .layout-menu .menu-item.active.open > .menu-link i {
+            color: var(--sidebar-active-text-color) !important;
+        }
+        
+        /* Sidebar hover state */
+        .layout-menu .menu-link:hover,
+        .layout-menu .menu-link:hover .menu-text,
+        .layout-menu .menu-link:hover div {
+            color: var(--sidebar-text-color) !important;
+            opacity: 0.8;
+        }
+    </style>
+    
     <!-- Helpers -->
     <script src="{{ asset('assets/vendor/js/helpers.js') }}"></script>
     <script src="{{ asset('assets/js/config.js') }}"></script>
@@ -42,6 +147,11 @@
             <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
                 <div class="app-brand demo">
                     <a href="{{ route('dashboard') }}" class="app-brand-link">
+                        @if(setting('company_logo'))
+                            <span class="app-brand-logo demo">
+                                <img src="{{ asset('storage/' . setting('company_logo')) }}" alt="Logo" style="max-height: 40px; max-width: 40px; object-fit: contain;">
+                            </span>
+                        @else
                         <span class="app-brand-logo demo">
                             <svg width="25" viewBox="0 0 25 42" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
                                 <defs>
@@ -76,7 +186,8 @@
                                 </g>
                             </svg>
                         </span>
-                        <span class="app-brand-text demo menu-text fw-bolder ms-2">{{ config('app.name', 'Sneat') }}</span>
+                        @endif
+                        <span class="app-brand-text demo menu-text fw-bolder ms-2">{{ setting('company_name', config('app.name', 'Sneat')) }}</span>
                     </a>
                     <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
                         <i class="bx bx-chevron-left bx-sm align-middle"></i>
@@ -94,7 +205,224 @@
                         </a>
                     </li>
                     
-                    @yield('menu-items')
+                    <!-- Gestion des tickets -->
+                    <li class="menu-item {{ request()->routeIs('tickets.*') || request()->routeIs('trips.*') || request()->routeIs('routes.*') || request()->routeIs('villes.*') || request()->routeIs('stops.*') || request()->routeIs('route-stop-prices.*') ? 'active open' : '' }}">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-receipt"></i>
+                            <div data-i18n="Gestion des tickets">Gestion des tickets</div>
+                        </a>
+                        <ul class="menu-sub">
+                            <!-- Tickets -->
+                            <li class="menu-item {{ request()->routeIs('tickets.index') || request()->routeIs('tickets.create') || request()->routeIs('tickets.show') ? 'active' : '' }}">
+                                <a href="{{ route('tickets.index') }}" class="menu-link">
+                                    <div data-i18n="Nouveau ticket">Nouveau ticket</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Tickets annulés -->
+                            <li class="menu-item {{ request()->routeIs('tickets.retrieve') ? 'active' : '' }}">
+                                <a href="{{ route('tickets.retrieve') }}" class="menu-link">
+                                    <div data-i18n="Tickets annulés">Tickets annulés</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Trips -->
+                            <li class="menu-item {{ request()->routeIs('trips.*') ? 'active' : '' }}">
+                                <a href="{{ route('trips.index') }}" class="menu-link">
+                                    <div data-i18n="Nouveau départ">Nouveau départ</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Routes -->
+                            <li class="menu-item {{ request()->routeIs('routes.*') ? 'active' : '' }}">
+                                <a href="{{ route('routes.index') }}" class="menu-link">
+                                    <div data-i18n="Trajets">Trajets</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Villes -->
+                            <li class="menu-item {{ request()->routeIs('villes.*') ? 'active' : '' }}">
+                                <a href="{{ route('villes.index') }}" class="menu-link">
+                                    <div data-i18n="Villes">Villes</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Stops -->
+                            <li class="menu-item {{ request()->routeIs('stops.*') ? 'active' : '' }}">
+                                <a href="{{ route('stops.index') }}" class="menu-link">
+                                    <div data-i18n="Arrêts">Arrêts</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Route Stop Prices -->
+                            <li class="menu-item {{ request()->routeIs('route-stop-prices.*') ? 'active' : '' }}">
+                                <a href="{{ route('route-stop-prices.index') }}" class="menu-link">
+                                    <div data-i18n="Configurations des tarifs">Configurations des tarifs</div>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Programme de fidélité -->
+                    <li class="menu-item {{ request()->routeIs('clients.*') ? 'active open' : '' }}">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-star"></i>
+                            <div data-i18n="Programme de fidélité">Programme de fidélité</div>
+                        </a>
+                        <ul class="menu-sub">
+                            <!-- Clients -->
+                            <li class="menu-item {{ request()->routeIs('clients.*') ? 'active' : '' }}">
+                                <a href="{{ route('clients.index') }}" class="menu-link">
+                                    <div data-i18n="Liste des clients">Liste des clients</div>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Gestion d'administration -->
+                    <li class="menu-item {{ request()->routeIs('employees.*') ? 'active open' : '' }}">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-cog"></i>
+                            <div data-i18n="Gestion d'administration">Gestion d'administration</div>
+                        </a>
+                        <ul class="menu-sub">
+                            <!-- Employees -->
+                            <li class="menu-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
+                                <a href="{{ route('employees.index') }}" class="menu-link">
+                                    <div data-i18n="Employés">Employés</div>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Gestion des utilisateurs et permissions -->
+                    {{-- VERSION TEMPORAIRE SANS PROTECTION POUR TEST --}}
+                    <li class="menu-item {{ request()->routeIs('users.*') || request()->routeIs('roles.*') || request()->routeIs('permissions.*') ? 'active open' : '' }}">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-user-check"></i>
+                            <div data-i18n="Utilisateurs & Permissions">Utilisateurs & Permissions</div>
+                        </a>
+                        <ul class="menu-sub">
+                            <!-- Utilisateurs -->
+                            <li class="menu-item {{ request()->routeIs('users.*') ? 'active' : '' }}">
+                                <a href="{{ route('users.index') }}" class="menu-link">
+                                    <div data-i18n="Utilisateurs">Utilisateurs</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Rôles -->
+                            <li class="menu-item {{ request()->routeIs('roles.*') ? 'active' : '' }}">
+                                <a href="{{ route('roles.index') }}" class="menu-link">
+                                    <div data-i18n="Rôles">Rôles</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Permissions -->
+                            <li class="menu-item {{ request()->routeIs('permissions.*') ? 'active' : '' }}">
+                                <a href="{{ route('permissions.index') }}" class="menu-link">
+                                    <div data-i18n="Permissions">Permissions</div>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Gestion des bus -->
+                    <li class="menu-item {{ request()->routeIs('buses.*') || request()->routeIs('fuel-records.*') ? 'active open' : '' }}">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-bus"></i>
+                            <div data-i18n="Gestion des bus">Gestion des bus</div>
+                        </a>
+                        <ul class="menu-sub">
+                            <!-- Buses -->
+                            <li class="menu-item {{ request()->routeIs('buses.*') ? 'active' : '' }}">
+                                <a href="{{ route('buses.index') }}" class="menu-link">
+                                    <div data-i18n="Bus">Bus</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Carburant -->
+                            <li class="menu-item {{ request()->routeIs('fuel-records.*') ? 'active' : '' }}">
+                                <a href="{{ route('fuel-records.index') }}" class="menu-link">
+                                    <div data-i18n="Carburant">Carburant</div>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Gestion des colis -->
+                    <li class="menu-item {{ request()->routeIs('parcels.*') ? 'active open' : '' }}">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-package"></i>
+                            <div data-i18n="Gestion des colis">Gestion des colis</div>
+                        </a>
+                        <ul class="menu-sub">
+                            <!-- Création de colis -->
+                            <li class="menu-item {{ request()->routeIs('parcels.create') ? 'active' : '' }}">
+                                <a href="{{ route('parcels.create') }}" class="menu-link">
+                                    <div data-i18n="Création de colis">Création de colis</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Liste des colis -->
+                            <li class="menu-item {{ request()->routeIs('parcels.index') ? 'active' : '' }}">
+                                <a href="{{ route('parcels.index') }}" class="menu-link">
+                                    <div data-i18n="Liste des colis">Liste des colis</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Liste des colis récupérés -->
+                            <li class="menu-item {{ request()->routeIs('parcels.retrieved') ? 'active' : '' }}">
+                                <a href="{{ route('parcels.retrieved') }}" class="menu-link">
+                                    <div data-i18n="Colis récupérés">Colis récupérés</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Destinations -->
+                            <li class="menu-item {{ request()->routeIs('destinations.*') ? 'active' : '' }}">
+                                <a href="{{ route('destinations.index') }}" class="menu-link">
+                                    <div data-i18n="Destinations">Destinations</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Agences de réception -->
+                            <li class="menu-item {{ request()->routeIs('reception-agencies.*') ? 'active' : '' }}">
+                                <a href="{{ route('reception-agencies.index') }}" class="menu-link">
+                                    <div data-i18n="Agences de réception">Agences de réception</div>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Gestion des dépenses -->
+                    <li class="menu-item {{ request()->routeIs('expenses.*') ? 'active open' : '' }}">
+                        <a href="javascript:void(0);" class="menu-link menu-toggle">
+                            <i class="menu-icon tf-icons bx bx-money"></i>
+                            <div data-i18n="Gestion des dépenses">Gestion des dépenses</div>
+                        </a>
+                        <ul class="menu-sub">
+                            <!-- Nouvelle dépense -->
+                            <li class="menu-item {{ request()->routeIs('expenses.create') ? 'active' : '' }}">
+                                <a href="{{ route('expenses.create') }}" class="menu-link">
+                                    <div data-i18n="Nouvelle dépense">Nouvelle dépense</div>
+                                </a>
+                            </li>
+                            
+                            <!-- Liste des dépenses -->
+                            <li class="menu-item {{ request()->routeIs('expenses.index') || request()->routeIs('expenses.show') || request()->routeIs('expenses.edit') ? 'active' : '' }}">
+                                <a href="{{ route('expenses.index') }}" class="menu-link">
+                                    <div data-i18n="Liste des dépenses">Liste des dépenses</div>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Paramètres -->
+                    <li class="menu-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
+                        <a href="{{ route('settings.index') }}" class="menu-link">
+                            <i class="menu-icon tf-icons bx bx-palette"></i>
+                            <div data-i18n="Paramètres">Paramètres</div>
+                        </a>
+                    </li>
                 </ul>
             </aside>
             <!-- / Menu -->

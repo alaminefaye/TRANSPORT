@@ -1,0 +1,138 @@
+═══════════════════════════════════════════════════════════════════════════
+  SYSTÈME DE PARAMÈTRES - COMMENT UTILISER
+═══════════════════════════════════════════════════════════════════════════
+
+✅ INSTALLATION TERMINÉE !
+
+Le système de paramètres est maintenant installé et fonctionnel.
+Vous pouvez personnaliser votre application en quelques clics.
+
+───────────────────────────────────────────────────────────────────────────
+📋 CE QUE VOUS POUVEZ FAIRE
+───────────────────────────────────────────────────────────────────────────
+
+1. CHANGER LE NOM DE L'ENTREPRISE
+   → Le nom apparaîtra partout dans l'application
+   
+2. CHANGER LE LOGO
+   → Remplacer le logo par défaut par votre propre logo
+   → Formats acceptés : JPG, PNG, GIF, SVG
+   
+3. CHANGER LES COULEURS
+   → Couleur principale (boutons, liens, menu)
+   → Couleur secondaire
+   → Format : #RRGGBB (exemple : #ff6b35)
+
+───────────────────────────────────────────────────────────────────────────
+🚀 COMMENT ACCÉDER AUX PARAMÈTRES
+───────────────────────────────────────────────────────────────────────────
+
+MÉTHODE 1 : Via le Menu
+1. Connectez-vous à l'application
+2. Regardez le menu à gauche
+3. Tout en bas, cliquez sur "Paramètres" (icône palette 🎨)
+
+MÉTHODE 2 : Via l'URL
+Allez directement sur : http://votre-site/settings
+
+───────────────────────────────────────────────────────────────────────────
+📝 ÉTAPES POUR PERSONNALISER
+───────────────────────────────────────────────────────────────────────────
+
+ÉTAPE 1 : Accédez à la page Paramètres
+
+ÉTAPE 2 : Modifiez ce que vous voulez
+   • Nom de l'entreprise → Tapez le nouveau nom
+   • Logo → Cliquez sur "Choisir un fichier" et sélectionnez votre logo
+   • Couleur principale → Cliquez sur le carré de couleur OU tapez le code
+   • Couleur secondaire → Même chose
+
+ÉTAPE 3 : Regardez l'aperçu
+   → Les boutons d'aperçu montrent comment ça va ressembler
+
+ÉTAPE 4 : Cliquez sur "Enregistrer les paramètres"
+   → C'est tout ! Les changements sont appliqués immédiatement
+
+───────────────────────────────────────────────────────────────────────────
+🎨 EXEMPLES DE COULEURS
+───────────────────────────────────────────────────────────────────────────
+
+Copiez-collez ces codes dans le champ couleur :
+
+BLEU PROFESSIONNEL    → #0066cc
+VERT ENTREPRISE       → #00a86b
+ROUGE DYNAMIQUE       → #dc3545
+ORANGE ÉNERGIQUE      → #fd7e14
+VIOLET MODERNE        → #6f42c1
+BLEU CIEL             → #00bcd4
+ROSE                  → #e83e8c
+
+───────────────────────────────────────────────────────────────────────────
+💡 CONSEILS
+───────────────────────────────────────────────────────────────────────────
+
+POUR LE LOGO :
+✓ Utilisez une image carrée (200x200 pixels minimum)
+✓ Fond transparent recommandé (PNG)
+✓ Taille max : 2 MB
+
+POUR LES COULEURS :
+✓ Testez l'aperçu avant de sauvegarder
+✓ Assurez-vous que le texte reste lisible
+✓ Utilisez les couleurs de votre charte graphique
+
+───────────────────────────────────────────────────────────────────────────
+🔧 EN CAS DE PROBLÈME
+───────────────────────────────────────────────────────────────────────────
+
+PROBLÈME : Le logo ne s'affiche pas
+SOLUTION : Contactez votre administrateur système
+           (Il doit exécuter : php artisan storage:link)
+
+PROBLÈME : Les couleurs ne changent pas
+SOLUTION : Rafraîchissez la page avec Ctrl+F5 (ou Cmd+Shift+R sur Mac)
+
+PROBLÈME : Erreur lors de la sauvegarde
+SOLUTION : Vérifiez que :
+           - Le fichier logo fait moins de 2 MB
+           - Le format de couleur est correct (#RRGGBB)
+
+───────────────────────────────────────────────────────────────────────────
+📚 DOCUMENTATION COMPLÈTE
+───────────────────────────────────────────────────────────────────────────
+
+Pour plus de détails, consultez ces fichiers :
+
+• QUICK_START_PARAMETRES.md    → Guide de démarrage rapide
+• PARAMETRES_GUIDE.md           → Guide complet
+• INSTALLATION_PARAMETRES.md    → Guide technique
+• RESUME_PARAMETRES.md          → Résumé technique
+
+───────────────────────────────────────────────────────────────────────────
+✨ EXEMPLE D'UTILISATION
+───────────────────────────────────────────────────────────────────────────
+
+Imaginons que vous voulez personnaliser pour "Transport Express" :
+
+1. Allez dans Paramètres
+2. Nom de l'entreprise : "Transport Express"
+3. Logo : Téléchargez votre logo transport-express.png
+4. Couleur principale : #0066cc (bleu)
+5. Couleur secondaire : #00a86b (vert)
+6. Cliquez sur "Enregistrer"
+
+→ Voilà ! Votre application est maintenant aux couleurs de Transport Express
+
+───────────────────────────────────────────────────────────────────────────
+🎉 C'EST TOUT !
+───────────────────────────────────────────────────────────────────────────
+
+Le système est simple à utiliser et ne nécessite aucune connaissance technique.
+
+Si vous avez des questions, consultez la documentation ou contactez
+votre administrateur système.
+
+Bonne personnalisation ! 🎨
+
+═══════════════════════════════════════════════════════════════════════════
+
