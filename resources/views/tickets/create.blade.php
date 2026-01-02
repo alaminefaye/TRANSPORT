@@ -115,8 +115,32 @@
                 <small class="text-muted">
                     <strong>Note importante:</strong> Les prix sont définis pour la route (trajet), pas pour chaque voyage. 
                     Une fois que vous avez défini les prix d'un trajet, ils sont automatiquement utilisés pour tous les voyages de ce trajet, 
-                    peu importe la date. Si le prix affiche 0, vérifiez que les tarifs sont bien définis dans la section "Tarifs des trajets".
+                    peu importe la date. Si le prix affiche 0, vérifiez que les tarifs sont bien définis dans la section "Tarifs des tarifs".
                 </small>
+            </div>
+            
+            <!-- Points de fidélité -->
+            <div class="mb-3" id="loyalty-points-section" style="display: none;">
+                <div class="alert alert-info">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>Points de fidélité :</strong> 
+                            <span id="client-loyalty-points" class="fw-bold text-primary">0</span> points
+                        </div>
+                        <div id="free-ticket-available" style="display: none;">
+                            <span class="badge bg-success">Voyage gratuit disponible !</span>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="use_loyalty_points" name="use_loyalty_points" value="1">
+                        <label class="form-check-label" for="use_loyalty_points">
+                            Utiliser 10 points pour un voyage gratuit
+                        </label>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        💡 <strong>Règles :</strong> Vous gagnez 1 point par ticket acheté. Si vous prenez plusieurs tickets le même jour avec des arrêts de montée différents, vous pouvez gagner plusieurs points. Avec 10 points, vous pouvez obtenir un voyage gratuit !
+                    </small>
+                </div>
             </div>
             
             <hr>
@@ -150,6 +174,7 @@
                     <option value="Carte bancaire" {{ old('payment_method') == 'Carte bancaire' ? 'selected' : '' }}>Carte bancaire</option>
                     <option value="Mobile Money" {{ old('payment_method') == 'Mobile Money' ? 'selected' : '' }}>Mobile Money</option>
                     <option value="Virement" {{ old('payment_method') == 'Virement' ? 'selected' : '' }}>Virement</option>
+                    <option value="Points de fidélité" id="loyalty-payment-option" style="display: none;">Points de fidélité (Voyage gratuit)</option>
                 </select>
                 @error('payment_method')
                     <div class="invalid-feedback">{{ $message }}</div>
@@ -830,6 +855,10 @@ let passengerSearchTimeout;
 document.getElementById('passenger_phone').addEventListener('input', function() {
     const phone = this.value.trim();
     const nameInput = document.getElementById('passenger_name');
+    const loyaltySection = document.getElementById('loyalty-points-section');
+    const loyaltyPointsSpan = document.getElementById('client-loyalty-points');
+    const freeTicketBadge = document.getElementById('free-ticket-available');
+    const useLoyaltyCheckbox = document.getElementById('use_loyalty_points');
     
     // Si le champ nom est déjà rempli manuellement, ne pas le modifier
     if (nameInput.value.trim() && nameInput.dataset.autoFilled !== 'true') {
@@ -843,8 +872,9 @@ document.getElementById('passenger_phone').addEventListener('input', function() 
             fetch(`/clients/search-by-phone?phone=${encodeURIComponent(phone)}`)
                 .then(response => {
                     if (response.status === 404) {
-                        // Client non trouvé, ne rien faire
+                        // Client non trouvé, cacher les points
                         nameInput.dataset.autoFilled = 'false';
+                        loyaltySection.style.display = 'none';
                         return null;
                     }
                     return response.json();
@@ -859,17 +889,39 @@ document.getElementById('passenger_phone').addEventListener('input', function() 
                         setTimeout(function() {
                             nameInput.style.backgroundColor = '';
                         }, 2000);
+                        
+                        // Afficher les points de fidélité
+                        const points = data.client.loyalty_points || 0;
+                        loyaltyPointsSpan.textContent = points;
+                        loyaltySection.style.display = 'block';
+                        
+                        // Afficher le badge si le client peut avoir un voyage gratuit
+                        if (data.client.can_use_free_ticket && points >= 10) {
+                            freeTicketBadge.style.display = 'block';
+                            useLoyaltyCheckbox.disabled = false;
+                            // Afficher l'option de paiement par points
+                            document.getElementById('loyalty-payment-option').style.display = 'block';
+                        } else {
+                            freeTicketBadge.style.display = 'none';
+                            useLoyaltyCheckbox.disabled = true;
+                            useLoyaltyCheckbox.checked = false;
+                            // Cacher l'option de paiement par points
+                            document.getElementById('loyalty-payment-option').style.display = 'none';
+                            updatePriceWithLoyalty();
+                        }
                     } else {
-                        // Client non trouvé
+                        // Client non trouvé, cacher les points
                         if (nameInput.dataset.autoFilled === 'true') {
                             nameInput.value = '';
                         }
                         nameInput.dataset.autoFilled = 'false';
+                        loyaltySection.style.display = 'none';
                     }
                 })
                 .catch(error => {
                     console.error('Erreur lors de la recherche du client:', error);
                     nameInput.dataset.autoFilled = 'false';
+                    loyaltySection.style.display = 'none';
                 });
         } else {
             // Numéro trop court, réinitialiser si c'était auto-rempli
@@ -877,6 +929,9 @@ document.getElementById('passenger_phone').addEventListener('input', function() 
                 nameInput.value = '';
                 nameInput.dataset.autoFilled = 'false';
             }
+            loyaltySection.style.display = 'none';
+            // Cacher l'option de paiement par points
+            document.getElementById('loyalty-payment-option').style.display = 'none';
         }
     }, 500); // Attendre 500ms après la dernière frappe
 });
@@ -887,6 +942,56 @@ document.getElementById('passenger_name').addEventListener('input', function() {
         this.dataset.autoFilled = 'false';
     }
 });
+
+// Gérer le changement de la checkbox pour utiliser les points
+document.getElementById('use_loyalty_points').addEventListener('change', function() {
+    updatePriceWithLoyalty();
+});
+
+// Gérer le changement de méthode de paiement
+document.getElementById('payment_method').addEventListener('change', function() {
+    const useLoyaltyCheckbox = document.getElementById('use_loyalty_points');
+    if (this.value === 'Points de fidélité') {
+        // Si l'utilisateur sélectionne "Points de fidélité", cocher la checkbox
+        useLoyaltyCheckbox.checked = true;
+        updatePriceWithLoyalty();
+    } else if (useLoyaltyCheckbox.checked) {
+        // Si l'utilisateur change la méthode de paiement alors que la checkbox est cochée
+        useLoyaltyCheckbox.checked = false;
+        updatePriceWithLoyalty();
+    }
+});
+
+function updatePriceWithLoyalty() {
+    const useLoyalty = document.getElementById('use_loyalty_points').checked;
+    const priceDisplay = document.getElementById('price_display');
+    const calculatedPrice = document.getElementById('calculated_price');
+    const paymentMethod = document.getElementById('payment_method');
+    
+    if (useLoyalty) {
+        // Voyage gratuit
+        priceDisplay.value = '0 FCFA (Voyage gratuit avec points)';
+        priceDisplay.style.color = '#28a745';
+        priceDisplay.style.fontWeight = 'bold';
+        calculatedPrice.value = '0';
+        // Sélectionner automatiquement "Points de fidélité" comme méthode de paiement
+        paymentMethod.value = 'Points de fidélité';
+    } else {
+        // Prix normal
+        const originalPrice = calculatedPrice.value || '0';
+        if (originalPrice > 0) {
+            priceDisplay.value = new Intl.NumberFormat('fr-FR').format(originalPrice) + ' FCFA';
+            priceDisplay.style.color = '';
+            priceDisplay.style.fontWeight = '';
+        } else {
+            priceDisplay.value = '0 FCFA';
+        }
+        // Si "Points de fidélité" était sélectionné, revenir à "Espèce"
+        if (paymentMethod.value === 'Points de fidélité') {
+            paymentMethod.value = 'Espèce';
+        }
+    }
+}
 </script>
 @endpush
 @endsection

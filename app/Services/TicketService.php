@@ -13,22 +13,28 @@ class TicketService
 {
     /**
      * Vérifie si un siège est disponible pour un segment donné
+     * Utilise un verrou pessimiste pour éviter les doublons en cas de requêtes simultanées
      */
-    public function isSeatAvailable(Trip $trip, int $seatNumber, int $fromStopId, int $toStopId): bool
+    public function isSeatAvailable(Trip $trip, int $seatNumber, int $fromStopId, int $toStopId, bool $useLock = false): bool
     {
         // Charger la relation route avec routeStops
         if (!$trip->relationLoaded('route')) {
             $trip->load('route.routeStops');
         }
 
-        // Récupérer tous les segments occupés pour ce siège sur ce voyage
-        // Exclure les segments des tickets "Terminé" ou "Annulé" pour libérer les sièges
-        $occupiedSegments = SeatSegment::where('trip_id', $trip->id)
+        // Utiliser un verrou pessimiste si demandé (pour éviter les doublons)
+        $query = SeatSegment::where('trip_id', $trip->id)
             ->where('seat_number', $seatNumber)
             ->whereHas('ticket', function ($query) {
                 $query->whereNotIn('status', ['Terminé', 'Annulé']);
-            })
-            ->get();
+            });
+        
+        if ($useLock) {
+            // Verrou pessimiste : bloque les autres transactions jusqu'à la fin
+            $query->lockForUpdate();
+        }
+        
+        $occupiedSegments = $query->get();
 
         // Pour chaque segment occupé, vérifier s'il y a un conflit
         foreach ($occupiedSegments as $segment) {
@@ -75,15 +81,16 @@ class TicketService
 
     /**
      * Trouve un siège disponible pour un segment donné
+     * @param bool $useLock Utiliser un verrou pessimiste pour éviter les doublons
      */
-    public function findAvailableSeat(Trip $trip, int $fromStopId, int $toStopId): ?int
+    public function findAvailableSeat(Trip $trip, int $fromStopId, int $toStopId, bool $useLock = false): ?int
     {
         $bus = $trip->bus;
         $capacity = $bus->capacity;
 
         // Essayer chaque siège
         for ($seat = 1; $seat <= $capacity; $seat++) {
-            if ($this->isSeatAvailable($trip, $seat, $fromStopId, $toStopId)) {
+            if ($this->isSeatAvailable($trip, $seat, $fromStopId, $toStopId, $useLock)) {
                 return $seat;
             }
         }
@@ -243,26 +250,33 @@ class TicketService
 
     /**
      * Crée un ticket avec gestion des segments
+     * Utilise des verrous pessimistes pour éviter les doublons en cas de requêtes simultanées
      */
     public function createTicket(array $data): Ticket
     {
+        // Utiliser un niveau d'isolation élevé pour éviter les problèmes de concurrence
         return DB::transaction(function () use ($data) {
-            $trip = Trip::with('route.routeStops', 'bus')->findOrFail($data['trip_id']);
+            // Recharger le trip avec verrou pour éviter les modifications concurrentes
+            $trip = Trip::with('route.routeStops', 'bus')
+                ->lockForUpdate()
+                ->findOrFail($data['trip_id']);
             
-            // Vérifier la disponibilité
+            // Vérifier la disponibilité avec verrou pessimiste
             $seatNumber = $data['seat_number'] ?? $this->findAvailableSeat(
                 $trip,
                 $data['from_stop_id'],
-                $data['to_stop_id']
+                $data['to_stop_id'],
+                true // Utiliser le verrou
             );
 
             if (!$seatNumber) {
                 throw new \Exception('Aucun siège disponible pour ce segment.');
             }
 
-            // Vérifier que le siège est disponible
-            if (!$this->isSeatAvailable($trip, $seatNumber, $data['from_stop_id'], $data['to_stop_id'])) {
-                throw new \Exception('Le siège sélectionné n\'est pas disponible pour ce segment.');
+            // Vérifier à nouveau avec verrou pessimiste juste avant la création
+            // C'est crucial pour éviter les doublons en cas de requêtes simultanées
+            if (!$this->isSeatAvailable($trip, $seatNumber, $data['from_stop_id'], $data['to_stop_id'], true)) {
+                throw new \Exception('Le siège sélectionné n\'est plus disponible pour ce segment. Il a peut-être été réservé par un autre guichet.');
             }
 
             // Calculer le prix si non fourni, sinon utiliser le prix fourni
@@ -285,8 +299,14 @@ class TicketService
                 'status' => 'En attente',
             ]);
 
-            // Créer les segments pour ce ticket
-            $this->createSegments($trip, $ticket, $seatNumber, $data['from_stop_id'], $data['to_stop_id']);
+            // Créer les segments pour ce ticket avec gestion d'erreur pour les doublons
+            try {
+                $this->createSegments($trip, $ticket, $seatNumber, $data['from_stop_id'], $data['to_stop_id']);
+            } catch (\Exception $e) {
+                // Si erreur de doublon, supprimer le ticket créé et relancer l'erreur
+                $ticket->delete();
+                throw new \Exception('Erreur lors de la réservation du siège. Le siège a peut-être été réservé par un autre guichet. Veuillez réessayer.');
+            }
 
             return $ticket;
         });
@@ -294,6 +314,7 @@ class TicketService
 
     /**
      * Crée les segments d'occupation pour un ticket
+     * Vérifie chaque segment avant création pour éviter les doublons
      */
     private function createSegments(Trip $trip, Ticket $ticket, int $seatNumber, int $fromStopId, int $toStopId): void
     {
@@ -317,11 +338,44 @@ class TicketService
         }
 
         // Créer un segment pour chaque paire d'arrêts consécutifs entre from et to
+        // Vérifier chaque segment avant création pour éviter les doublons
         for ($i = $fromOrder; $i < $toOrder; $i++) {
             $currentStop = $routeStops->where('order', $i)->first();
             $nextStop = $routeStops->where('order', $i + 1)->first();
 
             if ($currentStop && $nextStop) {
+                // Vérifier si ce segment spécifique existe déjà avec verrou pessimiste
+                $existingSegment = SeatSegment::where('trip_id', $trip->id)
+                    ->where('seat_number', $seatNumber)
+                    ->where('from_stop_id', $currentStop->stop_id)
+                    ->where('to_stop_id', $nextStop->stop_id)
+                    ->whereHas('ticket', function ($query) {
+                        $query->whereNotIn('status', ['Terminé', 'Annulé']);
+                    })
+                    ->lockForUpdate()
+                    ->first();
+                
+                if ($existingSegment) {
+                    throw new \Exception("Le segment entre {$currentStop->stop->name} et {$nextStop->stop->name} est déjà occupé pour ce siège.");
+                }
+                
+                // Vérifier aussi les chevauchements avec d'autres segments
+                $overlappingSegments = SeatSegment::where('trip_id', $trip->id)
+                    ->where('seat_number', $seatNumber)
+                    ->where('ticket_id', '!=', $ticket->id) // Exclure le ticket actuel
+                    ->whereHas('ticket', function ($query) {
+                        $query->whereNotIn('status', ['Terminé', 'Annulé']);
+                    })
+                    ->lockForUpdate()
+                    ->get();
+                
+                foreach ($overlappingSegments as $segment) {
+                    if ($this->segmentsOverlap($trip, $currentStop->stop_id, $nextStop->stop_id, $segment->from_stop_id, $segment->to_stop_id)) {
+                        throw new \Exception("Le siège {$seatNumber} est déjà réservé pour un segment qui chevauche votre trajet.");
+                    }
+                }
+                
+                // Créer le segment uniquement si aucune collision n'a été détectée
                 SeatSegment::create([
                     'trip_id' => $trip->id,
                     'seat_number' => $seatNumber,
@@ -335,15 +389,30 @@ class TicketService
 
     /**
      * Récupère les sièges disponibles pour un segment
+     * Utilise des verrous pour obtenir des données à jour
      */
-    public function getAvailableSeats(Trip $trip, int $fromStopId, int $toStopId): array
+    public function getAvailableSeats(Trip $trip, int $fromStopId, int $toStopId, bool $useLock = false): array
     {
         $bus = $trip->bus;
         $capacity = $bus->capacity;
         $availableSeats = [];
 
+        // Utiliser une transaction avec verrous si demandé
+        if ($useLock) {
+            return DB::transaction(function () use ($trip, $fromStopId, $toStopId, $capacity) {
+                $seats = [];
+                for ($seat = 1; $seat <= $capacity; $seat++) {
+                    if ($this->isSeatAvailable($trip, $seat, $fromStopId, $toStopId, true)) {
+                        $seats[] = $seat;
+                    }
+                }
+                return $seats;
+            });
+        }
+
+        // Sans verrou (pour les requêtes de consultation)
         for ($seat = 1; $seat <= $capacity; $seat++) {
-            if ($this->isSeatAvailable($trip, $seat, $fromStopId, $toStopId)) {
+            if ($this->isSeatAvailable($trip, $seat, $fromStopId, $toStopId, false)) {
                 $availableSeats[] = $seat;
             }
         }

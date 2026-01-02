@@ -41,7 +41,7 @@ class SettingController extends Controller
         // Update primary color
         if ($request->has('primary_color')) {
             Setting::set('primary_color', $request->primary_color, 'color', 'Couleur principale');
-        }
+    }
 
         // Update secondary color
         if ($request->has('secondary_color')) {
@@ -51,12 +51,12 @@ class SettingController extends Controller
         // Update sidebar text color
         if ($request->has('sidebar_text_color')) {
             Setting::set('sidebar_text_color', $request->sidebar_text_color, 'color', 'Couleur du texte du menu (sidebar)');
-        }
+    }
 
         // Update sidebar active background color
         if ($request->has('sidebar_active_bg_color')) {
             Setting::set('sidebar_active_bg_color', $request->sidebar_active_bg_color, 'color', 'Couleur de fond de l\'élément actif du menu');
-        }
+    }
 
         // Update sidebar active text color
         if ($request->has('sidebar_active_text_color')) {
@@ -69,7 +69,7 @@ class SettingController extends Controller
             $oldLogo = Setting::get('company_logo');
             if ($oldLogo && Storage::disk('public')->exists($oldLogo)) {
                 Storage::disk('public')->delete($oldLogo);
-            }
+    }
 
             // Store new logo
             $logoPath = $request->file('logo')->store('logos', 'public');

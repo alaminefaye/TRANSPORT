@@ -11,6 +11,7 @@ class Client extends Model
         'name',
         'phone',
         'email',
+        'loyalty_points',
     ];
 
     /**
@@ -35,5 +36,21 @@ class Client extends Model
     public function receivedParcels(): HasMany
     {
         return $this->hasMany(Parcel::class, 'recipient_client_id');
+    }
+
+    /**
+     * Relation avec les points de fidélité gagnés
+     */
+    public function loyaltyPointEarnings(): HasMany
+    {
+        return $this->hasMany(LoyaltyPointEarning::class);
+    }
+    
+    /**
+     * Vérifie si le client peut utiliser un voyage gratuit
+     */
+    public function canUseFreeTicket(): bool
+    {
+        return ($this->loyalty_points ?? 0) >= 10;
     }
 }

@@ -77,6 +77,8 @@ class ClientController extends Controller
                 'name' => $client->name,
                 'phone' => $client->phone,
                 'email' => $client->email,
+                'loyalty_points' => $client->loyalty_points ?? 0,
+                'can_use_free_ticket' => ($client->loyalty_points ?? 0) >= 10,
             ]
         ]);
     }

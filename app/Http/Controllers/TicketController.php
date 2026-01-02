@@ -9,6 +9,7 @@ use App\Models\Route;
 use App\Models\Stop;
 use App\Models\Client;
 use App\Services\TicketService;
+use App\Services\LoyaltyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,10 +17,12 @@ use Illuminate\Support\Facades\DB;
 class TicketController extends Controller
 {
     protected $ticketService;
+    protected $loyaltyService;
 
-    public function __construct(TicketService $ticketService)
+    public function __construct(TicketService $ticketService, LoyaltyService $loyaltyService)
     {
         $this->ticketService = $ticketService;
+        $this->loyaltyService = $loyaltyService;
     }
 
     public function index(Request $request)
@@ -105,7 +108,8 @@ class TicketController extends Controller
             'seat_number' => 'nullable|integer|min:1',
             'selected_seats' => 'nullable|string', // Nouveau champ pour les sièges multiples
             'price' => 'nullable|numeric|min:0',
-            'payment_method' => 'required|in:Espèce,Carte bancaire,Mobile Money,Virement',
+            'payment_method' => 'required|in:Espèce,Carte bancaire,Mobile Money,Virement,Points de fidélité',
+            'use_loyalty_points' => 'nullable|boolean',
         ]);
 
         try {
@@ -147,6 +151,16 @@ class TicketController extends Controller
                 $seatsToUse = [null]; // Un seul ticket avec siège automatique
             }
 
+            // Vérifier si le client veut utiliser ses points pour un voyage gratuit
+            $useLoyaltyPoints = $request->has('use_loyalty_points') && $request->use_loyalty_points == '1';
+            $isFreeTicket = false;
+            
+            if ($useLoyaltyPoints && $this->loyaltyService->canUseFreeTicket($client)) {
+                // Utiliser 10 points pour un voyage gratuit
+                $this->loyaltyService->useFreeTicket($client);
+                $isFreeTicket = true;
+            }
+            
             $createdTickets = [];
             $totalAmount = 0;
             
@@ -160,33 +174,66 @@ class TicketController extends Controller
                     $validated['to_stop_id']
                 );
             }
+            
+            // Si c'est un voyage gratuit, le prix est 0
+            if ($isFreeTicket) {
+                $unitPrice = 0;
+            }
 
             // Créer un ticket pour chaque siège sélectionné
+            $failedSeats = [];
             foreach ($seatsToUse as $seatNumber) {
-                $ticket = $this->ticketService->createTicket([
-                    'trip_id' => $validated['trip_id'],
-                    'from_stop_id' => $validated['from_stop_id'],
-                    'to_stop_id' => $validated['to_stop_id'],
-                    'passenger_name' => $validated['passenger_name'],
-                    'passenger_phone' => $phone,
-                    'passenger_id' => $validated['passenger_id'] ?? null,
-                    'client_id' => $client->id,
-                    'seat_number' => $seatNumber,
-                    'price' => $unitPrice, // Utiliser le prix unitaire calculé
-                    'sold_by' => Auth::id(),
-                ]);
+                try {
+                    $ticket = $this->ticketService->createTicket([
+                        'trip_id' => $validated['trip_id'],
+                        'from_stop_id' => $validated['from_stop_id'],
+                        'to_stop_id' => $validated['to_stop_id'],
+                        'passenger_name' => $validated['passenger_name'],
+                        'passenger_phone' => $phone,
+                        'passenger_id' => $validated['passenger_id'] ?? null,
+                        'client_id' => $client->id,
+                        'seat_number' => $seatNumber,
+                        'price' => $unitPrice, // Utiliser le prix unitaire calculé
+                        'sold_by' => Auth::id(),
+                    ]);
 
-                $createdTickets[] = $ticket;
-                $totalAmount += $ticket->price;
+                    $createdTickets[] = $ticket;
+                    $totalAmount += $ticket->price;
 
-                // Créer le paiement pour ce ticket
-                Payment::create([
-                    'ticket_id' => $ticket->id,
-                    'amount' => $ticket->price,
-                    'payment_method' => $validated['payment_method'],
-                    'status' => 'Completed',
-                    'received_by' => Auth::id(),
-                ]);
+                    // Créer le paiement pour ce ticket
+                    $paymentMethod = $isFreeTicket ? 'Points de fidélité' : $validated['payment_method'];
+                    Payment::create([
+                        'ticket_id' => $ticket->id,
+                        'amount' => $ticket->price,
+                        'payment_method' => $paymentMethod,
+                        'status' => 'Completed',
+                        'received_by' => Auth::id(),
+                    ]);
+                    
+                    // Attribuer des points de fidélité (sauf si c'est un voyage gratuit)
+                    if (!$isFreeTicket) {
+                        $this->loyaltyService->awardPointsForTicket($client, $ticket);
+                    }
+                } catch (\Exception $e) {
+                    // Si le siège n'est plus disponible, l'enregistrer pour afficher un message
+                    $failedSeats[] = [
+                        'seat' => $seatNumber,
+                        'error' => $e->getMessage()
+                    ];
+                    // Continuer avec les autres sièges
+                }
+            }
+            
+            // Si certains sièges ont échoué, afficher un avertissement
+            if (!empty($failedSeats)) {
+                $failedSeatsList = implode(', ', array_column($failedSeats, 'seat'));
+                if (count($createdTickets) > 0) {
+                    // Certains tickets ont été créés, d'autres non
+                    session()->flash('warning', "Attention : Les tickets pour les sièges {$failedSeatsList} n'ont pas pu être créés car ils ont été réservés par un autre guichet. Les autres tickets ont été créés avec succès.");
+                } else {
+                    // Aucun ticket créé
+                    throw new \Exception("Aucun ticket n'a pu être créé. Les sièges sélectionnés ont peut-être été réservés par un autre guichet. Veuillez sélectionner d'autres sièges.");
+                }
             }
 
             DB::commit();
@@ -194,7 +241,7 @@ class TicketController extends Controller
             // Rediriger vers le premier ticket créé ou la liste si plusieurs
             if (count($createdTickets) === 1) {
                 return redirect()->route('tickets.show', $createdTickets[0])
-                    ->with('success', 'Ticket créé avec succès.');
+                ->with('success', 'Ticket créé avec succès.');
             } else {
                 return redirect()->route('tickets.index')
                     ->with('success', count($createdTickets) . ' tickets créés avec succès. Montant total: ' . number_format($totalAmount, 0, ',', ' ') . ' FCFA');

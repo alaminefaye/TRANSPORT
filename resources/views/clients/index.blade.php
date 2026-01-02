@@ -65,6 +65,7 @@
                         <th>Nom</th>
                         <th>Téléphone</th>
                         <th>Email</th>
+                        <th>Points de fidélité</th>
                         <th>Nombre de tickets</th>
                         <th>Nombre de courriers</th>
                         <th>Date d'enregistrement</th>
@@ -78,6 +79,18 @@
                         <td>{{ $client->name }}</td>
                         <td>{{ $client->phone }}</td>
                         <td>{{ $client->email ?? '-' }}</td>
+                        <td>
+                            @php
+                                $points = $client->loyalty_points ?? 0;
+                                $canUseFreeTicket = $points >= 10;
+                            @endphp
+                            <span class="badge {{ $canUseFreeTicket ? 'bg-success' : 'bg-warning' }}" title="{{ $canUseFreeTicket ? 'Voyage gratuit disponible' : 'Voyage gratuit disponible à partir de 10 points' }}">
+                                <i class="bx bx-star"></i> {{ $points }} point{{ $points > 1 ? 's' : '' }}
+                                @if($canUseFreeTicket)
+                                    <i class="bx bx-check-circle ms-1" title="Voyage gratuit disponible"></i>
+                                @endif
+                            </span>
+                        </td>
                         <td>
                             <span class="badge bg-info">{{ $client->tickets_count }}</span>
                         </td>
@@ -93,7 +106,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="8" class="text-center">
+                        <td colspan="9" class="text-center">
                             @if(request()->hasAny(['name', 'phone', 'email']))
                                 Aucun client trouvé avec les critères de recherche spécifiés.
                                 <br>
