@@ -51,8 +51,13 @@
             <div class="card-body">
                 <p class="mb-2"><strong>Nombre de voyages:</strong> {{ $bus->trips->count() }}</p>
                 @if($bus->trips->count() > 0)
-                    <a href="{{ route('trips.index', ['bus_id' => $bus->id]) }}" class="btn btn-sm btn-outline-primary">Voir les voyages</a>
+                    <a href="{{ route('trips.index', ['bus_id' => $bus->id]) }}" class="btn btn-sm btn-outline-primary mb-2">Voir les voyages</a>
                 @endif
+                <div class="mt-2">
+                    <a href="{{ route('buses.configure-seats', $bus) }}" class="btn btn-sm btn-outline-info">
+                        <i class="bx bx-chair"></i> Configurer la disposition des sièges
+                    </a>
+                </div>
             </div>
         </div>
     </div>

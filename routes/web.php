@@ -36,6 +36,8 @@ Route::middleware(['auth'])->group(function () {
 
     // Buses
     Route::resource('buses', BusController::class);
+    Route::get('/buses/{bus}/configure-seats', [BusController::class, 'configureSeats'])->name('buses.configure-seats');
+    Route::post('/buses/{bus}/save-seat-layout', [BusController::class, 'saveSeatLayout'])->name('buses.save-seat-layout');
 
     // Fuel Records
     Route::resource('fuel-records', FuelRecordController::class);

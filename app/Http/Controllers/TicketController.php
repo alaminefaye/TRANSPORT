@@ -391,6 +391,10 @@ class TicketController extends Controller
         ]);
 
         $trip = Trip::with('route.routeStops', 'bus')->findOrFail($validated['trip_id']);
+        
+        // Recharger le bus pour s'assurer d'avoir les dernières données
+        $trip->bus->refresh();
+        
         $availableSeats = $this->ticketService->getAvailableSeats(
             $trip,
             $validated['from_stop_id'],
@@ -402,10 +406,19 @@ class TicketController extends Controller
         $allSeats = range(1, $capacity);
         $occupiedSeats = array_diff($allSeats, $availableSeats);
 
+        // Récupérer la disposition personnalisée du bus si elle existe
+        $seatLayout = $trip->bus->seat_layout ?? null;
+        
+        // Debug: logger la disposition pour vérification
+        if ($seatLayout) {
+            \Log::info('Seat layout loaded for bus ' . $trip->bus->id . ':', $seatLayout);
+        }
+
         return response()->json([
             'available_seats' => $availableSeats,
             'occupied_seats' => array_values($occupiedSeats), // Réindexer le tableau
-            'total_capacity' => $capacity
+            'total_capacity' => $capacity,
+            'seat_layout' => $seatLayout // Disposition personnalisée du bus
         ]);
     }
 

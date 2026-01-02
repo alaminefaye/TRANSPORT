@@ -335,3 +335,4 @@ Votre système de gestion des utilisateurs et permissions est maintenant opérat
 
 *Installation réalisée le 2 Janvier 2026*
 
+

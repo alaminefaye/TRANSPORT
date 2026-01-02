@@ -328,3 +328,4 @@ https://spatie.be/docs/laravel-permission/v6/introduction
 - [ ] Tester les permissions
 - [ ] Configurer les sauvegardes de la base de données
 
+

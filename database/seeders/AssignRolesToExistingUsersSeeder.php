@@ -53,3 +53,4 @@ class AssignRolesToExistingUsersSeeder extends Seeder
     }
 }
 
+

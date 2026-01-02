@@ -41,3 +41,4 @@ class DebugController extends Controller
     }
 }
 
+

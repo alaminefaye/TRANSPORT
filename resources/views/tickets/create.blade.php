@@ -631,6 +631,10 @@ function updateSeats() {
         return;
     }
     
+    // Réinitialiser les états pour forcer le rechargement
+    selectedSeats = [];
+    seatStates = {};
+    
     loadAvailableSeats(tripId, fromStopId, toStopId);
 }
 
@@ -655,20 +659,37 @@ function loadAvailableSeats(tripId, fromStopId, toStopId) {
         return;
     }
     
-    if (!fromStopId || !toStopId) {
-        // Afficher tous les sièges comme libres (sans vérification)
-        generateSeatGrid(capacity, tripId, fromStopId, toStopId, []);
-        seatContainer.style.display = 'block';
-        return;
-    }
+        if (!fromStopId || !toStopId) {
+            // Afficher tous les sièges comme libres (sans vérification)
+            // Récupérer la disposition du bus si disponible (avec timestamp pour éviter le cache)
+            fetch(`/tickets/available-seats?trip_id=${tripId}&from_stop_id=${fromStopId || ''}&to_stop_id=${toStopId || ''}&_t=${Date.now()}`)
+                .then(response => response.json())
+                .then(data => {
+                    const seatLayout = data.seat_layout || null;
+                    generateSeatGrid(capacity, tripId, fromStopId, toStopId, [], [], seatLayout);
+                })
+                .catch(() => {
+                    generateSeatGrid(capacity, tripId, fromStopId, toStopId, [], [], null);
+                });
+            seatContainer.style.display = 'block';
+            return;
+        }
     
-    // Charger les sièges disponibles et leur état
-    fetch(`/tickets/available-seats?trip_id=${tripId}&from_stop_id=${fromStopId}&to_stop_id=${toStopId}`)
+    // Charger les sièges disponibles et leur état (avec timestamp pour éviter le cache)
+    fetch(`/tickets/available-seats?trip_id=${tripId}&from_stop_id=${fromStopId}&to_stop_id=${toStopId}&_t=${Date.now()}`)
         .then(response => response.json())
         .then(data => {
             const availableSeats = data.available_seats || [];
             const occupiedSeats = data.occupied_seats || [];
             const totalCapacity = data.total_capacity || capacity;
+            const seatLayout = data.seat_layout || null; // Disposition personnalisée du bus
+            
+            // Debug: afficher la disposition dans la console
+            if (seatLayout) {
+                console.log('Disposition personnalisée chargée:', seatLayout);
+            } else {
+                console.log('Aucune disposition personnalisée, utilisation de l\'ordre séquentiel');
+            }
             
             // Marquer les sièges comme libres ou occupés
             for (let seat = 1; seat <= totalCapacity; seat++) {
@@ -681,7 +702,7 @@ function loadAvailableSeats(tripId, fromStopId, toStopId) {
                 }
             }
             
-            generateSeatGrid(totalCapacity, tripId, fromStopId, toStopId, availableSeats, occupiedSeats);
+            generateSeatGrid(totalCapacity, tripId, fromStopId, toStopId, availableSeats, occupiedSeats, seatLayout);
             seatContainer.style.display = 'block';
         })
         .catch(error => {
@@ -690,44 +711,59 @@ function loadAvailableSeats(tripId, fromStopId, toStopId) {
             for (let seat = 1; seat <= capacity; seat++) {
                 seatStates[seat] = 'free';
             }
-            generateSeatGrid(capacity, tripId, fromStopId, toStopId, [], []);
+            generateSeatGrid(capacity, tripId, fromStopId, toStopId, [], [], null);
             seatContainer.style.display = 'block';
         });
 }
 
-function generateSeatGrid(capacity, tripId, fromStopId, toStopId, availableSeats, occupiedSeats = []) {
+function generateSeatGrid(capacity, tripId, fromStopId, toStopId, availableSeats, occupiedSeats = [], seatLayout = null) {
     const seatGrid = document.getElementById('seat-grid');
     seatGrid.innerHTML = '';
     
-    // Créer un bouton pour chaque siège
-    for (let seat = 1; seat <= capacity; seat++) {
+    // Si une disposition personnalisée existe, l'utiliser
+    // Sinon, utiliser l'ordre séquentiel (1, 2, 3, ...)
+    let displayOrder;
+    if (seatLayout && Array.isArray(seatLayout) && seatLayout.length === capacity) {
+        displayOrder = [...seatLayout];
+        console.log('Utilisation de la disposition personnalisée:', displayOrder);
+    } else {
+        displayOrder = Array.from({ length: capacity }, (_, i) => i + 1);
+        console.log('Utilisation de l\'ordre séquentiel:', displayOrder);
+    }
+    
+    // Créer un bouton pour chaque siège dans l'ordre de la disposition
+    displayOrder.forEach((displaySeatNumber, index) => {
+        // Le numéro logique du siège (pour la base de données) est index + 1
+        const logicalSeatNumber = index + 1;
+        
         const seatButton = document.createElement('button');
         seatButton.type = 'button';
         seatButton.className = 'seat-button';
-        seatButton.dataset.seatNumber = seat;
+        seatButton.dataset.seatNumber = logicalSeatNumber; // Utiliser le numéro logique pour la sélection
         
         // Créer l'icône de chaise
         const seatIcon = document.createElement('i');
         seatIcon.className = 'bx bx-chair seat-icon';
         
-        // Créer le numéro du siège
+        // Créer le numéro du siège (afficher le numéro de la disposition)
         const seatNumber = document.createElement('span');
         seatNumber.className = 'seat-number';
-        seatNumber.textContent = seat;
+        seatNumber.textContent = displaySeatNumber;
         
         // Ajouter l'icône et le numéro au bouton
         seatButton.appendChild(seatIcon);
         seatButton.appendChild(seatNumber);
         
         // Déterminer l'état initial (utiliser seatStates si déjà défini, sinon calculer)
-        let state = seatStates[seat] || 'free';
-        if (occupiedSeats.length > 0 && occupiedSeats.includes(seat)) {
+        // Utiliser le numéro logique pour vérifier l'état
+        let state = seatStates[logicalSeatNumber] || 'free';
+        if (occupiedSeats.length > 0 && occupiedSeats.includes(logicalSeatNumber)) {
             state = 'occupied';
-            seatStates[seat] = 'occupied';
-        } else if (availableSeats.length > 0 && availableSeats.includes(seat)) {
+            seatStates[logicalSeatNumber] = 'occupied';
+        } else if (availableSeats.length > 0 && availableSeats.includes(logicalSeatNumber)) {
             state = 'free';
-            if (!seatStates[seat] || seatStates[seat] !== 'selected') {
-                seatStates[seat] = 'free';
+            if (!seatStates[logicalSeatNumber] || seatStates[logicalSeatNumber] !== 'selected') {
+                seatStates[logicalSeatNumber] = 'free';
             }
         }
         
@@ -737,12 +773,12 @@ function generateSeatGrid(capacity, tripId, fromStopId, toStopId, availableSeats
         // Ajouter l'événement de clic seulement si le siège n'est pas occupé
         if (state !== 'occupied') {
             seatButton.addEventListener('click', function() {
-                toggleSeatSelection(seat);
+                toggleSeatSelection(logicalSeatNumber);
             });
         }
         
         seatGrid.appendChild(seatButton);
-    }
+    });
 }
 
 function toggleSeatSelection(seatNumber) {

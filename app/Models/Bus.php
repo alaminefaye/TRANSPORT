@@ -13,10 +13,12 @@ class Bus extends Model
         'type',
         'status',
         'notes',
+        'seat_layout',
     ];
 
     protected $casts = [
         'capacity' => 'integer',
+        'seat_layout' => 'array',
     ];
 
     public function trips(): HasMany
